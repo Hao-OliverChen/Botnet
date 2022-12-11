@@ -248,7 +248,7 @@ class Client():
 				fp.write("Pee-ka-boo!")
 				return
 
-		self.send(Request(f"File {file} Already Exists.", status=Status.FAIL))
+		else: self.send(Request(f"File {file} Already Exists.", status=Status.FAIL))
 	# end of test
 	
 
