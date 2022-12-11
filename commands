@@ -3,10 +3,6 @@ Server Commands
 list - list all connected clients
 ping - ping all clients
 connect <client_id> - connect to a client
-attack <ip> <port> <duration> <threads> - UDP flood attack on target
-tasklist - list all running tasks
-kill <task_id> - kill a task
-killall - kill all tasks
 destroy - destroy all clients
 help - show this help message
 
