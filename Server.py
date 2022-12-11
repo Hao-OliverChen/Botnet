@@ -197,11 +197,9 @@ class Session:
 	# For upload test
 	def cmd_upload(self, file:str):
 		self.send(Request(cmd="UPLOAD", body={"params": file}, direct=True))
-  
 		resp  = self.recv()
 
 		if resp.header.get("status") == Status.OK:
-
 			print(f"Uploaded file {file}")
 
 		elif resp.header.get("status") == Status.FAIL:

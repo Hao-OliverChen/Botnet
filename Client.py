@@ -246,9 +246,10 @@ class Client():
 		if not os.path.exists(file):
 			with open(file, "w") as fp:
 				fp.write("Pee-ka-boo!")
+				self.send(status=Status.OK)
 				return
 
-		else: self.send(Request(f"File {file} Already Exists.", status=Status.FAIL))
+		self.send(Request(f"File {file} Already Exists.", status=Status.FAIL))
 	# end of test
 	
 
