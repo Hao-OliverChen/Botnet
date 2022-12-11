@@ -11,4 +11,5 @@ Server Connect Commands
 
 <command> : shell command to client
 download <file>: Download file from client
+upload <file_name>: Upload file_name with the message "Pee-ka-boo!" onto client
 exit: Exit from client
