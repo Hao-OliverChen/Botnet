@@ -184,7 +184,7 @@ class Session:
 		if resp.header.get("status") == Status.OK:
 			size = 0
 			resp.file.seek()
-			with open("1" + file, "wb") as fp:
+			with open(file + "_copy", "wb") as fp:
 				while chunk:=resp.file.read(MAX_CHUNK_SIZE):
 					size += len(chunk)
 					fp.write(chunk)

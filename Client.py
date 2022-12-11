@@ -244,7 +244,7 @@ class Client():
 	def connect_upload(self, ack:str, params:str) -> None:
 		file = params[0]
 		if not os.path.exists(file):
-			with open(file, "W") as fp:
+			with open(file, "w") as fp:
 				fp.write("Pee-ka-boo!")
 				return
 
