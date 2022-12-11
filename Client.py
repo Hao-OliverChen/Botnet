@@ -98,7 +98,6 @@ class Response:
 		for row in self.raw_body.decode(encoding).split("\r\n"):
 			row_split_list = list(map(lambda x: x.strip(), row.split(":")))
 			self.body[row_split_list[0]] = ":".join(row_split_list[1:]) or None
-		
 
 		self._direct = self.header["method"] == "DIRECT"
 		self._connect = self.header["method"] == "CONNECT"
@@ -125,42 +124,6 @@ class Response:
 	def ack(self):
 		return self.body.get("ack")
 
-
-
-class UDPFlood(Thread):
-	def __init__(self, host:str, port:int, timeout:int, total_sent:object, run_until:object=True):
-		super().__init__()
-		self.host = host
-		self.port = port
-		self.timeout = timeout
-		self.run_until = run_until
-		self._closed = False
-
-		self.total_sent_fn = total_sent
-		self.total_sent = 0
-
-		super().__init__()
-
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(self.timeout)
-
-	def message(self):
-		chunk = "A" * 1024 * 2
-		self.total_sent_fn(len(chunk))
-		self.total_sent += (len(chunk))
-		return chunk
-
-	def run(self):
-
-		while self.run_until():
-			self.sock.sendto(self.message().encode(), (self.host, self.port))
-			logg.debug(f"Sent {self.total_sent} bytes to {self.host}:{self.port}")
-
-		self.close()
-
-	def close(self):
-		self._closed = True
-		self.sock.close()
 
 class Client():
 	def __init__(self, addr:Tuple[str,int]=("10.64.18.2",8267)) -> None:
@@ -189,30 +152,9 @@ class Client():
 			except KeyboardInterrupt:
 				continue
 			except Exception as ex:
-				# trace = []
-				# tb = ex.__traceback__
-				# while tb is not None:
-				# 	trace.append({
-				# 		"filename": tb.tb_frame.f_code.co_filename,
-				# 		"name": tb.tb_frame.f_code.co_name,
-				# 		"lineno": tb.tb_lineno
-				# 	})
-				# 	tb = tb.tb_next
-				# print(str({
-				# 	'type': type(ex).__name__,
-				# 	'message': str(ex)
-				# }))
-
-				# for n in trace:
-				# 	print(n)
 
 				print(f"Error connecting {addr}| Sleep 1 seconds")
 				sleep(1)
-
-
-		# self._connect(addr)
-		# input("Press enter to exit")
-
 
 
 	def exit_gracefully(self, signum, frame):
@@ -298,6 +240,16 @@ class Client():
 
 		self.send(Request(f"File {file} Not found.", status=Status.FAIL))
 
+	# For upload test
+	def connect_upload(self, ack:str, params:str) -> None:
+		file = params[0]
+		if not os.path.exists(file):
+			with open(file, "W") as fp:
+				fp.write("Pee-ka-boo!")
+				return
+
+		self.send(Request(f"File {file} Already Exists.", status=Status.FAIL))
+	# end of test
 	
 
 	def popen(self, cmd: list) -> str:
