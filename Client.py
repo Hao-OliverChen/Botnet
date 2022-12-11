@@ -206,8 +206,8 @@ class Client():
 				# for n in trace:
 				# 	print(n)
 
-				print(f"Error connecting {addr}| Sleep 0 seconds")
-				sleep(0)
+				print(f"Error connecting {addr}| Sleep 1 seconds")
+				sleep(1)
 
 
 		# self._connect(addr)
