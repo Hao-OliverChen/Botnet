@@ -348,7 +348,7 @@ class Server():
 		print("----Clients----")
 		for i, conn in self.get_connection():
 			ip, port = conn.getpeername()
-			self.cprint(f"{[i]}    {ip}:{port}    CONNECTED")
+			print(f"{[i]}    {ip}:{port}    CONNECTED")
 	
 	def cmd_reset(self):
 		for i, conn in self.get_connection():
@@ -378,7 +378,7 @@ class Server():
 		responses = self.recv()
 		for i, res in enumerate(responses, start=1):
 			ip, port = res.conn.getpeername()
-			self.cprint(f"{[i]}    {ip}:{port}    {res.output}")
+			print(f"{[i]}    {ip}:{port}    {res.output}")
 
 	def recv(self, conn:socket.socket=None) -> Response:
 		if conn is None:
