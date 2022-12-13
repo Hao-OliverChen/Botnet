@@ -163,7 +163,7 @@ class Session:
 	
 	def cmd_shell(self, *params):
 		#self.send(Request(cmd="SHELL", body={"params": ' '.join(params)}, direct=True)) #TODO: CHange params not in the body
-		self.send(Request(cmd="SHELL", params=params, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="SHELL", params=' '.join(params), direct=True)) #TODO: CHange params not in the body
 
 
 		resp  = self.recv()
