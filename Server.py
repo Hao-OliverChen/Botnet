@@ -22,9 +22,9 @@ class ContentType:
 	text = "TEXT"
 
 class Request:
-	def __init__(self, cmd:str, direct:bool=False, body:dict=dict(), header:dict=dict()):
+	def __init__(self, cmd:str, params:str='', direct:bool=False, body:dict=dict(), header:dict=dict()):
 		self.header = {"version": VERSION, "method": "CONNECT" if direct else "DIRECT", **header}
-		self.body = {"ack": True, "cmd": cmd, **body}
+		self.body = {"ack": True, "cmd": cmd, "params": params, **body}
 	
 	def __str__(self) -> str:
 		return f"Request(header={self.header}, body={self.body})"
@@ -162,7 +162,10 @@ class Session:
 			self.cmd_shell(*data)
 	
 	def cmd_shell(self, *params):
-		self.send(Request(cmd="SHELL", body={"params": ' '.join(params)}, direct=True))
+		#self.send(Request(cmd="SHELL", body={"params": ' '.join(params)}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="SHELL", params=params, direct=True)) #TODO: CHange params not in the body
+
+
 		resp  = self.recv()
 		print(resp.raw.decode())
 	
@@ -178,7 +181,9 @@ class Session:
 			print("\t" + f"{command:<40} - {description}")
 
 	def cmd_download(self, file:str):
-		self.send(Request(cmd="DOWNLOAD", body={"params": file}, direct=True))
+		#self.send(Request(cmd="DOWNLOAD", body={"params": file}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="DOWNLOAD", params=file, direct=True)) #TODO: CHange params not in the body
+
 		resp  = self.recv()
 
 		if resp.header.get("status") == Status.OK:
@@ -196,7 +201,9 @@ class Session:
 
 	# For upload test
 	def cmd_upload(self, file:str):
-		self.send(Request(cmd="UPLOAD", body={"params": file}, direct=True))
+		#self.send(Request(cmd="UPLOAD", body={"params": file}, direct=True)) #TODO: CHange params not in the body
+		self.send(Request(cmd="UPLOAD", params=file, direct=True)) #TODO: CHange params not in the body
+
 		resp  = self.recv()
 
 		if resp.header.get("status") == Status.OK:
@@ -402,6 +409,7 @@ class Server():
 
 		data = conn.recv(MAX_CHUNK_SIZE)
 		res = Response(data)
+		print(res)
 
 		while data:=conn.recv(MAX_CHUNK_SIZE):
 			if data.endswith(PAYLOAD_SUFFIX):
