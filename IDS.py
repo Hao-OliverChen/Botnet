@@ -63,7 +63,7 @@
 # ## Print out packet count per A <--> Z address pair
 # print("\n".join(f"{f'{key[0]} <--> {key[1]}'}: {count}" for key, count in packet_counts.items()))
 
-#------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------------
 
 # # Import the scapy library
 # from scapy.all import *
@@ -82,61 +82,63 @@
 # # Use the sniff function to capture all packets on all ports from IP address 10.64.18.1
 # sniff(filter="src 10.64.18.2 and portrange 30000-40000", prn=packet_info)
 
-from scapy.all import *
-from datetime import datetime
+#--------------------------------------------------------------------------------------------------------
 
-class ids:
-    __flagsTCP = {
-        'F': 'FIN',
-        'S': 'SYN',
-        'R': 'RST',
-        'P': 'PSH',
-        'A': 'ACK',
-        'U': 'URG',
-        'E': 'ECE',
-        'C': 'CWR',
-        }
+# from scapy.all import *
+# from datetime import datetime
 
-    __ip_cnt_TCP = {}               #ip address requests counter
+# class ids:
+#     __flagsTCP = {
+#         'F': 'FIN',
+#         'S': 'SYN',
+#         'R': 'RST',
+#         'P': 'PSH',
+#         'A': 'ACK',
+#         'U': 'URG',
+#         'E': 'ECE',
+#         'C': 'CWR',
+#         }
 
-    __THRESH=1000               
+#     __ip_cnt_TCP = {}               #ip address requests counter
 
-    def sniffPackets(self,packet):
-        if packet.haslayer(IP):
-            pckt_src=packet[IP].src
-            pckt_dst=packet[IP].dst
-            print("IP Packet: %s  ==>  %s  , %s"%(pckt_src,pckt_dst,str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))), end=' ')
+#     __THRESH=1000               
 
-        if packet.haslayer(TCP):
-            src_port=packet.sport
-            dst_port=packet.dport
-            print(", Port: %s --> %s, "%(src_port,dst_port), end='')
-            print([type(self).__flagsTCP[x] for x in packet.sprintf('%TCP.flags%')])
-            self.detect_TCPflood(packet)
-        else:
-            print()
+#     def sniffPackets(self,packet):
+#         if packet.haslayer(IP):
+#             pckt_src=packet[IP].src
+#             pckt_dst=packet[IP].dst
+#             print("IP Packet: %s  ==>  %s  , %s"%(pckt_src,pckt_dst,str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))), end=' ')
 
-
-    def detect_TCPflood(self,packet):
-        if packet.haslayer(TCP):
-            pckt_src=packet[IP].src
-            pckt_dst=packet[IP].dst
-            stream = pckt_src + ':' + pckt_dst
-
-            if stream in type(self).__ip_cnt_TCP:
-                type(self).__ip_cnt_TCP[stream] += 1
-            else:
-                type(self).__ip_cnt_TCP[stream] = 1
-
-            for stream in type(self).__ip_cnt_TCP:
-                pckts_sent = type(self).__ip_cnt_TCP[stream]
-                if pckts_sent > type(self).__THRESH:
-                    src = stream.split(':')[0]
-                    dst = stream.split(':')[1]
-                    print("Possible Flooding Attack from %s --> %s"%(src,dst))
+#         if packet.haslayer(TCP):
+#             src_port=packet.sport
+#             dst_port=packet.dport
+#             print(", Port: %s --> %s, "%(src_port,dst_port), end='')
+#             print([type(self).__flagsTCP[x] for x in packet.sprintf('%TCP.flags%')])
+#             self.detect_TCPflood(packet)
+#         else:
+#             print()
 
 
-if __name__ == '__main__':
-    print("custom packet sniffer ")
-    sniff(prn=ids().sniffPackets)
+#     def detect_TCPflood(self,packet):
+#         if packet.haslayer(TCP):
+#             pckt_src=packet[IP].src
+#             pckt_dst=packet[IP].dst
+#             stream = pckt_src + ':' + pckt_dst
+
+#             if stream in type(self).__ip_cnt_TCP:
+#                 type(self).__ip_cnt_TCP[stream] += 1
+#             else:
+#                 type(self).__ip_cnt_TCP[stream] = 1
+
+#             for stream in type(self).__ip_cnt_TCP:
+#                 pckts_sent = type(self).__ip_cnt_TCP[stream]
+#                 if pckts_sent > type(self).__THRESH:
+#                     src = stream.split(':')[0]
+#                     dst = stream.split(':')[1]
+#                     print("Possible Flooding Attack from %s --> %s"%(src,dst))
+
+
+# if __name__ == '__main__':
+#     print("custom packet sniffer ")
+#     sniff(prn=ids().sniffPackets)
 
